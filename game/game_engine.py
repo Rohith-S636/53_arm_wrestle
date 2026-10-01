@@ -19,6 +19,14 @@ class GameEngine:
         self.winner = None
         self.game_state = "PLAYING"
         self.ai_strength = 0.35  
+        self.ai_energy = 0.0
+        self.ai_energy_threshold = 150.0
+        self.ai_surge_timer = 0
+        self.ai_recovery_timer = 0
+        self.ai_surge_duration = 90
+        self.ai_recovery_duration = 60
+        self.ai_surge_multiplier = 4.0
+        self.ai_recovery_multiplier = 0.1
         
         self.font_big = pygame.font.SysFont(None, 44)
         self.font_med = pygame.font.SysFont(None, 26)
@@ -50,8 +58,24 @@ class GameEngine:
         if self.game_state != "PLAYING":
             return
 
+        if self.ai_recovery_timer > 0:
+            self.ai_recovery_timer -= 1
+            ai_force_multiplier = self.ai_recovery_multiplier
+        elif self.ai_surge_timer > 0:
+            self.ai_surge_timer -= 1
+            ai_force_multiplier = self.ai_surge_multiplier
+            if self.ai_surge_timer == 0:
+                self.ai_recovery_timer = self.ai_recovery_duration
+        else:
+            self.ai_energy = min(self.ai_energy_threshold, self.ai_energy + 1.0)
+            ai_force_multiplier = 1.0
+            if self.ai_energy >= self.ai_energy_threshold:
+                self.ai_energy = 0.0
+                self.ai_surge_timer = self.ai_surge_duration
+                ai_force_multiplier = self.ai_surge_multiplier
+
         ai_variance = random.uniform(0.3, 1.0)
-        self.arm_position += self.ai_strength * ai_variance
+        self.arm_position += self.ai_strength * ai_variance * ai_force_multiplier
 
         if self.stamina < self.max_stamina:
             self.stamina = min(self.max_stamina, self.stamina + 0.8)
@@ -69,6 +93,9 @@ class GameEngine:
         self.last_key = None
         self.winner = None
         self.game_state = "PLAYING"
+        self.ai_energy = 0.0
+        self.ai_surge_timer = 0
+        self.ai_recovery_timer = 0
 
     def render(self, screen):
         screen.fill((25, 28, 35))
@@ -115,6 +142,25 @@ class GameEngine:
         pygame.draw.rect(screen, (45, 50, 60), stamina_bg, border_radius=6)
         bar_color = (60, 210, 100) if self.stamina > 25 else (220, 60, 60)
         pygame.draw.rect(screen, bar_color, stamina_fill, border_radius=6)
+
+        if self.ai_surge_timer > 0:
+            ai_state = "AI SURGE!"
+            ai_state_color = (255, 170, 60)
+        elif self.ai_recovery_timer > 0:
+            ai_state = "AI RECOVERING"
+            ai_state_color = (120, 180, 220)
+        else:
+            ai_state = "AI NORMAL"
+            ai_state_color = (180, 180, 180)
+
+        ai_state_surf = self.font_med.render(ai_state, True, ai_state_color)
+        screen.blit(ai_state_surf, (40, 490))
+
+        ai_energy_bg = pygame.Rect(190, 493, 190, 14)
+        energy_ratio = self.ai_energy / self.ai_energy_threshold
+        ai_energy_fill = pygame.Rect(190, 493, int(190 * energy_ratio), 14)
+        pygame.draw.rect(screen, (45, 50, 60), ai_energy_bg, border_radius=4)
+        pygame.draw.rect(screen, ai_state_color, ai_energy_fill, border_radius=4)
 
         if self.game_state == "GAME_OVER":
             overlay = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
